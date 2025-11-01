@@ -1,86 +1,55 @@
-# apputil.py
+# train.py
 import pickle
-import pandas as pd
-import numpy as np
 from pathlib import Path
 
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+
+# Paths for pickle files
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_1_PATH = BASE_DIR / "model_1.pickle"
 MODEL_2_PATH = BASE_DIR / "model_2.pickle"
 
-# ---------- Safe model loading ----------
-def _load_pickle(path: Path):
-    if not path.exists():
-        raise FileNotFoundError(f"Model file missing: {path} — run `python3 train.py` first")
-    with open(path, "rb") as f:
-        return pickle.load(f)
+# Dataset URL
+CSV_URL = "https://raw.githubusercontent.com/leontoddjohnson/datasets/refs/heads/main/data/coffee_analysis.csv"
 
-model_1 = _load_pickle(MODEL_1_PATH)
-_model2_data = _load_pickle(MODEL_2_PATH)
+def main():
+    # Load data
+    df = pd.read_csv(CSV_URL)
 
-if isinstance(_model2_data, dict):
-    model_2 = _model2_data.get("model")
-    roast_map = _model2_data.get("roast_map", {})
-else:
-    model_2 = _model2_data
-    roast_map = {}
+    # Drop rows missing required columns
+    df = df.dropna(subset=["100g_USD", "rating", "roast"]).copy()
 
-# ---------- Predict function ----------
-def predict_rating(df_X: pd.DataFrame) -> np.ndarray:
-    """
-    Predict coffee ratings using model_2 if roast known, else fallback to model_1.
+    # ---------- Exercise 1: LinearRegression on 100g_USD ----------
+    X1 = df[["100g_USD"]].astype(float)
+    y = df["rating"].astype(float)
 
-    Parameters
-    ----------
-    df_X : pd.DataFrame
-        Must include column '100g_USD'. Optional: 'roast'.
+    model_1 = LinearRegression()
+    model_1.fit(X1, y)
 
-    Returns
-    -------
-    np.ndarray of predicted ratings
-    """
-    if not isinstance(df_X, pd.DataFrame):
-        raise ValueError("Input must be a pandas DataFrame")
-    if "100g_USD" not in df_X.columns:
-        raise ValueError("DataFrame must contain '100g_USD' column")
+    with open(MODEL_1_PATH, "wb") as f:
+        pickle.dump(model_1, f)
+    print(f"✅ Saved {MODEL_1_PATH.name}")
 
-    preds = []
-    has_roast = "roast" in df_X.columns
+    # ---------- Exercise 2: DecisionTreeRegressor on 100g_USD + roast ----------
+    # Normalize roast strings
+    df["roast_norm"] = df["roast"].astype(str).str.strip().str.title()
+    unique_roasts = df["roast_norm"].unique()
 
-    for _, row in df_X.iterrows():
-        price = row.get("100g_USD")
-        roast = row.get("roast") if has_roast else None
+    # Create mapping from roast text to numeric code
+    roast_map = {r: i for i, r in enumerate(unique_roasts)}
 
-        # Validate price
-        try:
-            price = float(price)
-        except (ValueError, TypeError):
-            preds.append(np.nan)
-            continue
+    df["roast_num"] = df["roast_norm"].map(roast_map)
 
-        # Normalize roast string
-        if roast is not None:
-            roast = str(roast).strip().title()
+    X2 = df[["100g_USD", "roast_num"]].astype(float)
+    model_2 = DecisionTreeRegressor(random_state=42)
+    model_2.fit(X2, y)
 
-        # Choose model
-        if roast is not None and roast in roast_map and model_2 is not None:
-            roast_val = roast_map[roast]
-            X = pd.DataFrame([[price, roast_val]], columns=["100g_USD", "roast_num"])
-            pred = model_2.predict(X)[0]
-        else:
-            X = pd.DataFrame([[price]], columns=["100g_USD"])
-            pred = model_1.predict(X)[0]
+    # Save DecisionTree as dict with model + roast_map
+    with open(MODEL_2_PATH, "wb") as f:
+        pickle.dump({"model": model_2, "roast_map": roast_map}, f)
+    print(f"✅ Saved {MODEL_2_PATH.name} (contains model + roast_map)")
 
-        preds.append(float(pred))
-
-    return np.array(preds)
-
-# ---------- Example test ----------
 if __name__ == "__main__":
-    sample = pd.DataFrame({
-        "100g_USD": [5.5, "10", np.nan, "abc", 7.2],
-        "roast": ["Medium", "unknown", " Light ", None, "Dark"]
-    })
-    print("🔹 Input Data:\n", sample)
-    preds = predict_rating(sample)
-    print("\n🔸 Predicted Ratings:\n", preds)
+    main()
