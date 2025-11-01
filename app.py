@@ -1,6 +1,6 @@
 import streamlit as st
 
-from apputil import *
+from ASSIGNMENT.apputil import *
 
 
 st.write(
