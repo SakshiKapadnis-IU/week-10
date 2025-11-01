@@ -28,13 +28,7 @@ else:
 # ---------- Predict function ----------
 def predict_rating(df_X: pd.DataFrame) -> np.ndarray:
     """
-    Predict coffee ratings.
-
-    Handles:
-    - Missing or invalid prices
-    - Unknown or missing roast values
-    - Proper column naming for models to avoid warnings
-    - Normalizes roast strings
+    Predict coffee ratings using model_2 if roast known, else fallback to model_1.
 
     Parameters
     ----------
