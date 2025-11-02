@@ -28,6 +28,16 @@ def main():
     model_1 = LinearRegression()
     model_1.fit(X1, y)
 
+filename = 'model_1.pickle'
+try:
+    with open(filename, 'wb') as f:
+        pickle.dump(model_1, f)
+    print(f"Model successfully saved to {filename}")
+except Exception as e:
+    print(f"An error occurred while saving the model: {e}")
+    
+
+
     with open(MODEL_1_PATH, "wb") as f:
         pickle.dump(model_1, f)
     print(f"✅ Saved {MODEL_1_PATH.name}")
