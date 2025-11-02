@@ -1,55 +1,38 @@
-# train.py
+# ==============================
+# apputil.py
+# ==============================
 import pickle
-from pathlib import Path
-
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeRegressor
+import numpy as np
 
-# Paths for pickle files
-BASE_DIR = Path(__file__).resolve().parent
-MODEL_1_PATH = BASE_DIR / "model_1.pickle"
-MODEL_2_PATH = BASE_DIR / "model_2.pickle"
+# Load models and roast mapping dictionary
+with open('model_1.pickle', 'rb') as f:
+    model_1 = pickle.load(f)
 
-# Dataset URL
-CSV_URL = "https://raw.githubusercontent.com/leontoddjohnson/datasets/refs/heads/main/data/coffee_analysis.csv"
+with open('model_2.pickle', 'rb') as f:
+    model_2 = pickle.load(f)
 
-def main():
-    # Load data
-    df = pd.read_csv(CSV_URL)
+with open('roast_cat.pickle', 'rb') as f:
+    roast_cat = pickle.load(f)
 
-    # Drop rows missing required columns
-    df = df.dropna(subset=["100g_USD", "rating", "roast"]).copy()
+def predict_rating(df_X: pd.DataFrame):
+    """
+    Predict coffee ratings based on 100g_USD and roast.
+    - Uses model_2 (Decision Tree) when roast is known.
+    - Falls back to model_1 (Linear Regression) when roast is unknown.
+    """
+    preds = []
 
-    # ---------- Exercise 1: LinearRegression on 100g_USD ----------
-    X1 = df[["100g_USD"]].astype(float)
-    y = df["rating"].astype(float)
+    for _, row in df_X.iterrows():
+        usd = row['100g_USD']
+        roast = row['roast']
 
-    model_1 = LinearRegression()
-    model_1.fit(X1, y)
+        if roast in roast_cat:
+            roast_num = roast_cat[roast]
+            pred = model_2.predict([[usd, roast_num]])[0]
+        else:
+            pred = model_1.predict([[usd]])[0]
 
-    with open(MODEL_1_PATH, "wb") as f:
-        pickle.dump(model_1, f)
-    print(f"✅ Saved {MODEL_1_PATH.name}")
+        preds.append(pred)
 
-    # ---------- Exercise 2: DecisionTreeRegressor on 100g_USD + roast ----------
-    # Normalize roast strings
-    df["roast_norm"] = df["roast"].astype(str).str.strip().str.title()
-    unique_roasts = df["roast_norm"].unique()
-
-    # Create mapping from roast text to numeric code
-    roast_map = {r: i for i, r in enumerate(unique_roasts)}
-
-    df["roast_num"] = df["roast_norm"].map(roast_map)
-
-    X2 = df[["100g_USD", "roast_num"]].astype(float)
-    model_2 = DecisionTreeRegressor(random_state=42)
-    model_2.fit(X2, y)
-
-    # Save DecisionTree as dict with model + roast_map
-    with open(MODEL_2_PATH, "wb") as f:
-        pickle.dump({"model": model_2, "roast_map": roast_map}, f)
-    print(f"✅ Saved {MODEL_2_PATH.name} (contains model + roast_map)")
-
-if __name__ == "__main__":
-    main()
+    return np.array(preds)
